@@ -11,83 +11,24 @@ const knex = require('knex')({
         database: 'finalproject'
     }
 })
-
+const register = require('./controllers/register.js');
+const signin = require('./controllers/signin.js');
+const image = require('./controllers/image.js');
+const profile = require('./controllers/profile.js');
+const PORT = process.env.PORT;
 const app = express();
 
 app.use(bodyParser.json());
 app.use(cors());
 
-app.get("/", (req, res) => {
-    res.json(database.users);
-})
+app.post("/signin", (req, res) => {signin.handleSignin(req, res, knex, bcrypt)});
 
-app.post("/signin", (req, res) => {
-    knex.select('email', 'hash').from('login')
-        .where('email', '=', req.body.email)
-        .then(data=> {
-        const isValid = bcrypt.compareSync(req.body.password, data[0].hash);
-        if(isValid) {
-            knex.select('*').from('users').where('email', '=', req.body.email)
-            .then(user => {
-                res.json(user[0]);
-            })
-            .catch(err => res.status(400).json("Unable to get user"))
-        }
-        else {
-            throw err;
-        }
-    })
-    .catch(err => res.status(400).json("Invalid credentials"))
-})
+app.post("/register", (req, res) => {register.handleRegister(req, res, knex, bcrypt)});
 
-app.post("/register", (req, res) => {
-    const {name, email, password} = req.body;
-    const hash = bcrypt.hashSync(password);
+app.get('/profile/:email', (req, res) => {profile.handleProfile(req, res, knex)});
 
-    knex.transaction(trx => {
-        trx.insert({
-            hash: hash,
-            email: email
-        })
-        .into('login')
-        .returning('email')
-        .then(loginemail => {
-            trx('users').returning('*').insert({
-                email: loginemail[0].email,
-                name: name,
-                joinedat: new Date()
-            }).then(user => {
-                res.json(user[0]);
-            }).catch(err=> res.status(400).json('unable to register'))
-        })
-        .then(trx.commit)
-        .catch(trx.rollback)
-    })
-    .catch(err => res.status(400).json('Unable to register'))
-})
+app.put('/image', (req, res) => {image.handleImage(req, res, knex)})
 
-app.get('/profile/:email', (req, res) => {
-    const {email} = req.params;
-    knex.select('*').from('users').where({
-        email:email
-    }).then(user => {
-        if(user.length === 0) {
-            res.status(400).json("User not found")
-        }
-        else {
-            res.json(user[0])
-        }
-    })
-})
-
-app.put('/image', (req, res) => {
-    const {email} = req.body;
-    knex('users').where('email', '=', email).increment('entries', 1).returning('entries').then(entries => {
-        res.json(entries[0])
-    })
-    .catch(err => res.status(400).json("Unable to get entries"));
-})
-
-app.listen(3001, () => {
-    console.log("Listening on port 3001");
+app.listen(PORT, () => {
+    console.log(`Listening on port ${PORT}`);
 })
